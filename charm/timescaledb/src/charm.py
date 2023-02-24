@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from subprocess import check_call
+from subprocess import check_output, check_call, Popen, PIPE
 import sys
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__))+'/../lib')
@@ -18,8 +18,8 @@ class TimescaleDB(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.framework.observe(self.on.install, self)
-        self.framework.observe(self.on.upgrade_charm, self)
+        self.framework.observe(self.on.install, self.on_install)
+        self.framework.observe(self.on.upgrade_charm, self.on_upgrade_charm)
 
     def on_install(self, event):
         if not hasattr(self.state, 'installed'):
@@ -32,18 +32,36 @@ class TimescaleDB(CharmBase):
                 event.framework.model.unit.status = WaitingStatus('waiting for postgresql to be installed')
                 event.defer()
                 return
-            check_call(['add-apt-repository', '-y', 'ppa:timescale/timescaledb-ppa'])
-            check_call(['apt-get', 'update', '-qq'])
-            if os.path.exists('/var/lib/postgresql/10'):
-                check_call(['apt-get', 'install', '-y', 'timescaledb-postgresql-10', 'postgresql-server-dev-10'])
-            elif os.path.exists('/var/lib/postgresql/11'):
-                check_call(['apt-get', 'install', '-y', 'timescaledb-postgresql-11', 'postgresql-server-dev-11'])
+            
+            # install dependencies
+            check_call(['sudo', 'apt-get', 'install', '-y', 'apt-transport-https', 'lsb-release', 'wget'])
+
+            # add apt repo to sources
+            release = check_output(['lsb_release', '-c', '-s']).decode("utf-8").rstrip('\n')
+            ps = Popen(['echo', 'deb https://packagecloud.io/timescale/timescaledb/ubuntu/ {} main'.format(release)], stdout=PIPE)
+            check_call(['sudo', 'tee', '/etc/apt/sources.list.d/timescaledb.list'], stdin=ps.stdout)
+            ps.wait()
+            
+            # add apt key
+            ps = Popen(['wget', '--quiet', '-O', '-', 'https://packagecloud.io/timescale/timescaledb/gpgkey'], stdout=PIPE)
+            check_call(['sudo', 'apt-key', 'add', '-'], stdin=ps.stdout)
+            ps.wait()
+            
+            # install TimescaleDB
+            check_call(['sudo','apt-get', 'update', '-qq'])
+            
+            if os.path.exists('/var/lib/postgresql/12'):
+                pgver = 12
+            elif os.path.exists('/var/lib/postgresql/14'):
+                pgver = 14            
             else:
-                event.framework.model.unit.status = BlockedStatus('failed to find a compatible version of postgresql (10, 11)')
+                event.framework.model.unit.status = BlockedStatus('failed to find a compatible version of postgresql (12, 14)')
                 event.defer()
                 return
+            
+            check_call(['sudo', 'apt-get', 'install', '-y', 'timescaledb-2-postgresql-{}'.format(pgver)])
             check_call(['timescaledb-tune', '-yes'])
-            check_call(['systemctl', 'restart', 'postgresql'])
+            check_call(['sudo', 'systemctl', 'restart', 'postgresql'])
             event.framework.model.unit.status = ActiveStatus()
             self.state.installed = True
         except Exception as e:
@@ -55,8 +73,8 @@ class TimescaleDB(CharmBase):
             self.on_install(event)
             return
         try:
-            check_call(['apt-get', 'update', '-qq'])
-            check_call(['apt-get', 'dist-upgrade', '-y'])
+            check_call(['sudo', 'apt-get', 'update', '-qq'])
+            check_call(['sudo', 'apt-get', 'dist-upgrade', '-y'])
             event.framework.model.unit.status = ActiveStatus()
         except Exception as e:
             event.framework.model.unit.status = BlockedStatus('{}: {}'.format("upgrade failed", e))

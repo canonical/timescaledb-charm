@@ -15,4 +15,5 @@ requires:
     interface: juju-info
     scope: container
 series:
-- bionic
+- focal
+- jammy
