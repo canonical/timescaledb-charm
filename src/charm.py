@@ -18,10 +18,10 @@ class TimescaleDB(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
-        self.framework.observe(self.on.install, self.on_install)
-        self.framework.observe(self.on.upgrade_charm, self.on_upgrade_charm)
+        self.framework.observe(self.on.install, self._on_install)
+        self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
-    def on_install(self, event):
+    def _on_install(self, event):
         if not hasattr(self.state, 'installed'):
             self.state.installed = False
         elif self.state.installed:
@@ -68,7 +68,7 @@ class TimescaleDB(CharmBase):
             event.framework.model.unit.status = BlockedStatus('{}: {}'.format("install failed", e))
             event.defer()
 
-    def on_upgrade_charm(self, event):
+    def _on_upgrade_charm(self, event):
         if not hasattr(self.state, 'installed'):
             self.on_install(event)
             return
