@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import logging
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pytest
 import yaml
-from pytest_operator.plugin import OpsTest
 from juju.errors import JujuError
-from subprocess import check_output, CalledProcessError, STDOUT
+from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +32,21 @@ async def test_build_and_deploy(ops_test: OpsTest):
     await ops_test.model.deploy(charm, application_name=APP_NAME, num_units=0)
 
     # Deploy postgresql charm.
-    await ops_test.model.deploy('postgresql', series='focal')
-    await ops_test.model.wait_for_idle(apps=['postgresql'], status='active', raise_on_blocked=True, timeout=1000)
+    await ops_test.model.deploy("postgresql", series="focal")
+    await ops_test.model.wait_for_idle(
+        apps=["postgresql"], status="active", raise_on_blocked=True, timeout=1000
+    )
 
     # Integrate the timescaledb charm with postgresql.
-    await ops_test.model.integrate(APP_NAME, 'postgresql')
-    await ops_test.model.wait_for_idle(apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=1000)
+    await ops_test.model.integrate(APP_NAME, "postgresql")
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=1000
+    )
 
     # Create database, activate TimescaleDB and check that it is enabled.
     ret = await ops_test.juju(
-        'ssh',
-        'postgresql/0',
+        "ssh",
+        "postgresql/0",
         r'echo -e "CREATE DATABASE tdb;\\n \\\c tdb;\\n CREATE EXTENSION IF NOT EXISTS timescaledb;\\n \\\dx;" | sudo psql -U postgres -f -',
     )
 
