@@ -21,10 +21,9 @@ class TimescaleDB(CharmBase):
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
     def _on_install(self, event):
-        if not hasattr(self.state, "installed"):
-            self.state.installed = False
-        elif self.state.installed:
-            return
+        installed = getattr(self.state, "installed", False)
+        if installed:
+            return 
         try:
             # test if postgresql installed yet
             if not os.path.exists("/var/lib/postgresql"):
@@ -44,9 +43,7 @@ class TimescaleDB(CharmBase):
             ps = Popen(
                 [
                     "echo",
-                    "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ {} main".format(
-                        release
-                    ),
+                    f"deb https://packagecloud.io/timescale/timescaledb/ubuntu/ {release} main",
                 ],
                 stdout=PIPE,
             )
@@ -84,18 +81,19 @@ class TimescaleDB(CharmBase):
                 return
 
             check_call(
-                ["sudo", "apt-get", "install", "-y", "timescaledb-2-postgresql-{}".format(pgver)]
+                ["sudo", "apt-get", "install", "-y", f"timescaledb-2-postgresql-{pgver}"]
             )
             check_call(["timescaledb-tune", "-yes"])
             check_call(["sudo", "systemctl", "restart", "postgresql"])
             event.framework.model.unit.status = ActiveStatus()
             self.state.installed = True
         except Exception as e:
-            event.framework.model.unit.status = BlockedStatus("{}: {}".format("install failed", e))
+            event.framework.model.unit.status = BlockedStatus(f"install failed: {e}")
             event.defer()
 
     def _on_upgrade_charm(self, event):
-        if not hasattr(self.state, "installed"):
+        installed = getattr(self.state, "installed", False)
+        if not installed:
             self.on_install(event)
             return
         try:
@@ -103,7 +101,7 @@ class TimescaleDB(CharmBase):
             check_call(["sudo", "apt-get", "dist-upgrade", "-y"])
             event.framework.model.unit.status = ActiveStatus()
         except Exception as e:
-            event.framework.model.unit.status = BlockedStatus("{}: {}".format("upgrade failed", e))
+            event.framework.model.unit.status = BlockedStatus(f"upgrade failed: {e}")
             event.defer()
 
 
