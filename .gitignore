@@ -91,3 +91,6 @@ ENV/
 .*.swp
 
 .unit-state.db
+
+# compiled charms
+*.charm
