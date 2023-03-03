@@ -14,6 +14,25 @@ requires:
   host-system:
     interface: juju-info
     scope: container
+resources:
+  deb:
+    type: file
+    filename: timescaledb.deb
+    description: |
+      Deb package for TimescaleDB (optional). If not provided, the charm will
+      download the latest version from the TimescaleDB third party ppa repo.
+  loader-deb:
+    type: file
+    filename: timescaledb_loader.deb
+    description: |
+      Deb package for TimescaleDB loader. Must be provided if using a custom
+      deb for installing (see `deb` resource).
+  tools-deb:
+    type: file
+    filename: timescaledb_tools.deb
+    description: |
+      Deb package for TimescaleDB tools. Must be provided if using a custom deb
+      for installing (see `deb` resource).
 series:
 - focal
 - jammy
