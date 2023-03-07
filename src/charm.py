@@ -21,6 +21,9 @@ class TimescaleDB(CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
+    # Install hook that waits for Postgresql to be installed and installs the TimescaleDB
+    # dependencies. It does not install the actual TimescaleDB debs as the process depends
+    # on configurations, and the config_changed hook will fire right after this one.
     def _on_install(self, event):
         installed = getattr(self.state, "installed", False)
         if installed:
@@ -44,10 +47,8 @@ class TimescaleDB(CharmBase):
             event.framework.model.unit.status = BlockedStatus(f"install failed: {e}")
             event.defer()
 
-    def _remove_repo(self, event):
-        return
-
-    def _install_from_resources(self, event):
+    # Helper to setup TimescaleDB from deb resources.
+    def _setup_from_resources(self, event):
         debs = ["loader-deb", "tools-deb", "deb"]
         deb_paths = []
 
@@ -63,7 +64,7 @@ class TimescaleDB(CharmBase):
         for dp in deb_paths:
             check_call(["sudo", "dpkg", "-i", dp])
 
-    # setup apt repository
+    # Helper to setup the apt repository for TimescaleDB.
     def _setup_repo(self, event):
         # add apt repo to sources
         apt_repo = self.state.config["apt_repository"]
@@ -94,8 +95,10 @@ class TimescaleDB(CharmBase):
             check_call(["sudo", "apt-key", "add", "-"], stdin=ps.stdout)
             ps.wait()
 
-    # install TimescaleDB from apt repository
-    def _install_from_repo(self, event):
+    # Helper to setup TimescaleDB from a previously added apt repository. If TimescaleDB is
+    # already setup, it will update it, assuming the version pointed by the config is an update
+    # of the existing one.
+    def _setup_from_repo(self, event):
         check_call(["sudo", "apt-get", "update", "-qq"])
         if os.path.exists("/var/lib/postgresql/12"):
             pgver = 12
@@ -117,8 +120,12 @@ class TimescaleDB(CharmBase):
 
         check_call(["sudo", "apt-get", "install", "-y", tsdb, tsdb_loader])
 
-    # handle configuration changes
+    # Config_changed hook that sets up TimescaleDB according to the configuration of the charm.
     def _on_config_changed(self, event):
+        installed = getattr(self.state, "installed", False)
+        if not installed:
+            self._on_install(event)
+
         event.framework.model.unit.status = MaintenanceStatus("setting up TimescaleDB per config")
 
         old_config = getattr(self.state, "config", None)
@@ -126,7 +133,7 @@ class TimescaleDB(CharmBase):
             "from_resources": event.framework.model.config["from-resources"],
             "apt_key": event.framework.model.config["apt-key"],
             "apt_repository": event.framework.model.config["apt-repository"],
-            "version": event.framework.model.config["version"],
+            "version": getattr(event.framework.model.config, "version", ""),
         }
         self.state.config = new_config
 
@@ -144,19 +151,19 @@ class TimescaleDB(CharmBase):
                     or old_config["apt_key"] != new_config["apt_key"]
                 ):
                     self._setup_repo(event)
-                    self._install_from_repo(event)
+                    self._setup_from_repo(event)
                 elif old_config["version"] != new_config["version"]:
-                    self._install_from_repo(event)
+                    self._setup_from_repo(event)
             else:
                 event.framework.model.unit.status = ActiveStatus()
                 return
         else:
             # no old config, this is the first setup
             if new_config["from_resources"]:
-                self._install_from_resources(event)
+                self._setup_from_resources(event)
             else:
                 self._setup_repo(event)
-                self._install_from_repo(event)
+                self._setup_from_repo(event)
 
         # setup timescaledb after installation
         check_call(["timescaledb-tune", "-yes"])
@@ -164,18 +171,31 @@ class TimescaleDB(CharmBase):
 
         event.framework.model.unit.status = ActiveStatus()
 
+    # Upgrade hook that will setup or update the TimescaleDB packages.
     def _on_upgrade_charm(self, event):
+        # trigger _on_install if not installed
         installed = getattr(self.state, "installed", False)
         if not installed:
-            self.on_install(event)
+            self._on_install(event)
+
+        # triggered _on_config_changed if not configured at all
+        config = getattr(self.state, "config", None)
+        if not config:
+            self._on_config_changed(event)
             return
-        try:
-            check_call(["sudo", "apt-get", "update", "-qq"])
-            check_call(["sudo", "apt-get", "dist-upgrade", "-y"])
-            event.framework.model.unit.status = ActiveStatus()
-        except Exception as e:
-            event.framework.model.unit.status = BlockedStatus(f"upgrade failed: {e}")
-            event.defer()
+
+        config = getattr(self.state, "config", None)
+
+        if config["from_resources"]:
+            self._setup_from_resources(event)
+        else:
+            try:
+                check_call(["sudo", "apt-get", "update", "-qq"])
+                check_call(["sudo", "apt-get", "dist-upgrade", "-y"])
+                event.framework.model.unit.status = ActiveStatus()
+            except Exception as e:
+                event.framework.model.unit.status = BlockedStatus(f"upgrade failed: {e}")
+                event.defer()
 
 
 if __name__ == "__main__":
