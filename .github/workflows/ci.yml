@@ -22,10 +22,4 @@ jobs:
         with:
           juju-channel: 3.1/stable
       - name: Run integration tests
-        run: tox -e integration -- --model testing
-      - name: Dump logs
-        uses: canonical/charm-logdump-action@main
-        if: failure()
-        with:
-          app: timescaledb
-          model: testing
+        run: tox -e integration
