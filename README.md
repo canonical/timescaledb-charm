@@ -14,9 +14,9 @@ party apt repository as per [the Timescale documentation](https://docs.timescale
 The charm offers configuration options for a custom apt repository and/or TimescaleDB version.
 
 Alternatively, the charm also offers the possibility to install from-resources. In this case, the
-charm should be deployed directly with the `from-resources` config set to `True` and the resources
-must be provided at install time (debs for `timescaledb-2-loader`, `timescaledb-2-postgresql` and
-`timescaledb-tools`).
+charm should be deployed directly the resources provided at install time (debs for `timescaledb-2-loader`,
+`timescaledb-2-postgresql` and `timescaledb-tools`). Please note that, if installed from resources,
+the charm cannot be later configured from repository, or vice-versa.
 
 ## Usage
 In order to deploy the charm, one must have a postgresql charm deployed. Please note that this

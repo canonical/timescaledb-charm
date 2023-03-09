@@ -2,8 +2,9 @@
 
 """Subordinate charm for TimescaleDB."""
 import os
-from subprocess import PIPE, Popen, check_call, check_output
+import subprocess
 
+# from subprocess import subprocess.PIPE, subprocess.Popen, subprocess.check_call, subprocess.check_output
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
@@ -91,8 +92,8 @@ class TimescaleDB(CharmBase):
             if self._stored.has_resources:
                 self._setup_from_resources(self._get_resource_paths())
             else:
-                check_call(["sudo", "apt-get", "update", "-qq"])
-                check_call(["sudo", "apt-get", "dist-upgrade", "-y"])
+                subprocess.check_call(["sudo", "apt-get", "update", "-qq"])
+                subprocess.check_call(["sudo", "apt-get", "dist-upgrade", "-y"])
 
             event.framework.model.unit.status = ActiveStatus()
         except Exception as e:
@@ -102,15 +103,15 @@ class TimescaleDB(CharmBase):
     # Helper to get the configurations of the charm.
     def _get_config(self, event):
         return {
-            "apt_key": event.framework.model.config["apt-key"],
+            "apt_key": event.framework.model.config.get("apt-key", ""),
             "apt_repository": event.framework.model.config["apt-repository"],
             "version": event.framework.model.config.get("version", ""),
         }
 
     # Helper to setup the dependencies required by TimescaleDB.
     def _setup_dependencies(self):
-        check_call(["sudo", "apt-get", "update", "-qq"])
-        check_call(
+        subprocess.check_call(["sudo", "apt-get", "update", "-qq"])
+        subprocess.check_call(
             [
                 "sudo",
                 "apt-get",
@@ -131,46 +132,54 @@ class TimescaleDB(CharmBase):
                 deb_paths[d] = self.model.resources.fetch(d)
             except (NameError, ModelError):
                 pass
+
         return deb_paths
 
     # Helper to setup TimescaleDB from the given deb paths.
     def _setup_from_resources(self, deb_paths):
-        rh = getattr(self._stored, "resource_hashes", {})
         for d in self._debs:
-            path = deb_paths.get(d, "")
-            if not path:
-                raise Exception(f"cannot load resource: {d}")
+            if not deb_paths.get(d, ""):
+                raise Exception(f"resource missing: {d}")
 
+        rh = getattr(self._stored, "resource_hashes", {})
+        changed = False
+        for d in self._debs:
             old_hash = rh.get(d, "")
-            new_hash = check_output(["sha1sum", path]).decode("utf-8").split()[0]
+            new_hash = (
+                subprocess.check_output(["sha1sum", deb_paths[d]]).decode("utf-8").split()[0]
+            )
             rh[d] = new_hash
 
             if old_hash != new_hash:
-                check_call(["sudo", "dpkg", "-i", path])
+                subprocess.check_call(["sudo", "dpkg", "-i", deb_paths[d]])
+                changed = True
 
-        check_call(["timescaledb-tune", "-yes"])
-        check_call(["sudo", "systemctl", "restart", "postgresql"])
-        self._stored.resource_hashes = rh
+        if changed:
+            subprocess.check_call(["timescaledb-tune", "-yes"])
+            subprocess.check_call(["sudo", "systemctl", "restart", "postgresql"])
+            self._stored.resource_hashes = rh
 
     # Helper to setup the apt repository for TimescaleDB.
     def _setup_repo(self, config):
         # add apt repo to sources
         apt_repo = config["apt_repository"]
-        release = check_output(["lsb_release", "-c", "-s"]).decode("utf-8").rstrip("\n")
-        ps = Popen(
+        release = subprocess.check_output(["lsb_release", "-c", "-s"]).decode("utf-8").rstrip("\n")
+        ps = subprocess.Popen(
             [
                 "echo",
                 f"deb {apt_repo} {release} main",
             ],
-            stdout=PIPE,
+            stdout=subprocess.PIPE,
         )
-        check_call(["sudo", "tee", "/etc/apt/sources.list.d/timescaledb.list"], stdin=ps.stdout)
+        subprocess.check_call(
+            ["sudo", "tee", "/etc/apt/sources.list.d/timescaledb.list"], stdin=ps.stdout
+        )
         ps.wait()
 
         # add apt key
         apt_key = config["apt_key"]
         if apt_key:
-            ps = Popen(
+            ps = subprocess.Popen(
                 [
                     "wget",
                     "--quiet",
@@ -178,16 +187,16 @@ class TimescaleDB(CharmBase):
                     "-",
                     apt_key,
                 ],
-                stdout=PIPE,
+                stdout=subprocess.PIPE,
             )
-            check_call(["sudo", "apt-key", "add", "-"], stdin=ps.stdout)
+            subprocess.check_call(["sudo", "apt-key", "add", "-"], stdin=ps.stdout)
             ps.wait()
 
     # Helper to setup TimescaleDB from a previously added apt repository. If TimescaleDB is
     # already setup, it will update it, assuming the version pointed by the config is an update
     # of the existing one.
     def _setup_from_repo(self, config):
-        check_call(["sudo", "apt-get", "update", "-qq"])
+        subprocess.check_call(["sudo", "apt-get", "update", "-qq"])
         if os.path.exists("/var/lib/postgresql/12"):
             pgver = 12
         elif os.path.exists("/var/lib/postgresql/14"):
@@ -196,15 +205,15 @@ class TimescaleDB(CharmBase):
             raise Exception("failed to find a compatible version of postgresql (12, 14)")
 
         tsdb = f"timescaledb-2-postgresql-{pgver}"
-        tsdb_loader = f"timescaledb-2-postgresql-{pgver}"
+        tsdb_loader = f"timescaledb-2-loader-postgresql-{pgver}"
         ver = config["version"]
         if ver:
             tsdb = f"{tsdb}={ver}"
             tsdb_loader = f"{tsdb_loader}={ver}"
 
-        check_call(["sudo", "apt-get", "install", "-y", tsdb, tsdb_loader])
-        check_call(["timescaledb-tune", "-yes"])
-        check_call(["sudo", "systemctl", "restart", "postgresql"])
+        subprocess.check_call(["sudo", "apt-get", "install", "-y", tsdb, tsdb_loader])
+        subprocess.check_call(["timescaledb-tune", "-yes"])
+        subprocess.check_call(["sudo", "systemctl", "restart", "postgresql"])
 
 
 if __name__ == "__main__":
