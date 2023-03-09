@@ -1,8 +1,4 @@
 options:
-  from-resources:
-    default: False
-    description: Set to true if TimescaleDB is to be installed from resources.
-    type: boolean
   apt-repository:
     default: https://packagecloud.io/timescale/timescaledb/ubuntu/
     description: |
