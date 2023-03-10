@@ -19,11 +19,9 @@ jobs:
         uses: actions/checkout@v3
       - name: Setup operator environment
         uses: charmed-kubernetes/actions-operator@main
-      - name: Run integration tests
-        run: tox -e integration -- --model testing
-      - name: Dump logs
-        uses: canonical/charm-logdump-action@main
-        if: failure()
         with:
-          app: timescaledb
-          model: testing
+          juju-channel: 3.1/stable
+      - name: Run unit tests
+        run: tox -e unit
+      - name: Run integration tests
+        run: tox -e integration

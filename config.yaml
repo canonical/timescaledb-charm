@@ -1,1 +1,17 @@
-options: {}
+options:
+  apt-repository:
+    default: https://packagecloud.io/timescale/timescaledb/ubuntu/
+    description: |
+      The apt-repository to use for installing TimescaleDB.
+    type: string
+  apt-key:
+    default: https://packagecloud.io/timescale/timescaledb/gpgkey
+    description: |
+      The apt GPG key to use for installing TimescaleDB, in conjunction with
+      'apt-repository'. If it does not apply, configure to empty.
+    type: string
+  version:
+    default:
+    description: |
+      Version of TimescaleDB to install. Leave empty for latest.
+    type: string
