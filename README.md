@@ -47,5 +47,9 @@ juju deploy timescaledb --resource deb=<path-to-tsdb-deb> --resource loader-deb=
 Please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
-The Charmed PostgreSQL Operator is free software, distributed under the Apache Software License,
-version 2.0. See [LICENSE](LICENSE) for more information.
+The TimescaleDB Charm is free software, distributed under the Apache Software License, version 2.0.
+See [LICENSE](LICENSE) for more information.
+
+The charm installs TimescaleDB software from the official third-party repository (or other place of
+choice). The TimescaleDB softare is governed by the Timescale License (TSL) which can be found
+[here](https://www.timescale.com/legal/licenses).
