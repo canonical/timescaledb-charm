@@ -16,6 +16,7 @@ class TimescaleDB(CharmBase):
 
     _stored = StoredState()
     _debs = ["loader-deb", "tools-deb", "deb"]
+    _optional_debs = ["toolkit-deb"]
 
     def __init__(self, *args):
         super().__init__(*args)
@@ -76,7 +77,7 @@ class TimescaleDB(CharmBase):
             ):
                 self._setup_repo(new_config)
                 self._setup_from_repo(new_config)
-            elif old_config and old_config["version"] != new_config["version"]:
+            elif old_config:
                 self._setup_from_repo(new_config)
 
             self._stored.config = new_config
@@ -105,6 +106,8 @@ class TimescaleDB(CharmBase):
         return {
             "apt_key": event.framework.model.config.get("apt-key", ""),
             "apt_repository": event.framework.model.config["apt-repository"],
+            "setup_toolkit": event.framework.model.config["setup-toolkit"],
+            "toolkit_version": event.framework.model.config.get("toolkit-version", ""),
             "version": event.framework.model.config.get("version", ""),
         }
 
@@ -127,7 +130,7 @@ class TimescaleDB(CharmBase):
     # Helper to get the deb paths expected by the charm.
     def _get_resource_paths(self):
         deb_paths = {}
-        for d in self._debs:
+        for d in self._debs + self._optional_debs:
             try:
                 deb_paths[d] = self.model.resources.fetch(d)
             except (NameError, ModelError):
@@ -143,7 +146,11 @@ class TimescaleDB(CharmBase):
 
         rh = getattr(self._stored, "resource_hashes", {})
         changed = False
-        for d in self._debs:
+        for d in self._debs + self._optional_debs:
+            if not deb_paths.get(d, ""):
+                # Deb was optional and not provided, so we skip it.
+                continue
+
             old_hash = rh.get(d, "")
             new_hash = (
                 subprocess.check_output(["sha1sum", deb_paths[d]]).decode("utf-8").split()[0]
@@ -212,6 +219,14 @@ class TimescaleDB(CharmBase):
             tsdb_loader = f"{tsdb_loader}={ver}"
 
         subprocess.check_call(["sudo", "apt-get", "install", "-y", tsdb, tsdb_loader])
+
+        if config["setup_toolkit"]:
+            tsdb_toolkit = f"timescaledb-toolkit-postgresql-{pgver}"
+            toolkit_ver = config["toolkit_version"]
+            if toolkit_ver:
+                tsdb_toolkit = f"{tsdb_toolkit}={toolkit_ver}"
+            subprocess.check_call(["sudo", "apt-get", "install", "-y", tsdb_toolkit])
+
         subprocess.check_call(["timescaledb-tune", "-yes"])
         subprocess.check_call(["sudo", "systemctl", "restart", "postgresql"])
 
