@@ -10,6 +10,16 @@ options:
       The apt GPG key to use for installing TimescaleDB, in conjunction with
       'apt-repository'. If it does not apply, configure to empty.
     type: string
+  setup-toolkit:
+    default: False
+    description: |
+      Whether to also setup Timescale Toolkit or not.
+    type: boolean
+  toolkit-version:
+    default:
+    description: |
+      Version of TimescaleDB Toolkit to install. Leave empty for latest.
+    type: string
   version:
     default:
     description: |

@@ -45,6 +45,12 @@ class TestCharm(TestCase):
                 apt-key:
                   default:
                   type: string
+                setup-toolkit:
+                  default: False
+                  type: boolean
+                toolkit-version:
+                  default:
+                  type: string
                 version:
                   default:
                   type: string
@@ -113,9 +119,27 @@ class TestCharm(TestCase):
         mock_popen.reset_mock()
         mock_exists.reset_mock()
         harness.charm.on.config_changed.emit()
-        mock_check_call.assert_not_called()
+
         mock_popen.assert_not_called()
-        mock_exists.assert_not_called()
+        mock_exists.assert_has_calls([call("/var/lib/postgresql/12")])
+        mock_check_call.assert_has_calls(
+            [
+                call(["sudo", "apt-get", "update", "-qq"]),
+                call(
+                    [
+                        "sudo",
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "timescaledb-2-postgresql-12",
+                        "timescaledb-2-loader-postgresql-12",
+                    ]
+                ),
+                call(["timescaledb-tune", "-yes"]),
+                call(["sudo", "systemctl", "restart", "postgresql"]),
+            ]
+        )
+
         self.assertEqual(harness.model.unit.status, ActiveStatus())
 
     @patch("os.path.exists")
@@ -134,6 +158,12 @@ class TestCharm(TestCase):
                   default:
                   type: string
                 apt-key:
+                  default:
+                  type: string
+                setup-toolkit:
+                  default: False
+                  type: boolean
+                toolkit-version:
                   default:
                   type: string
                 version:
@@ -205,6 +235,102 @@ class TestCharm(TestCase):
                         "-y",
                         "timescaledb-2-postgresql-12",
                         "timescaledb-2-loader-postgresql-12",
+                    ]
+                ),
+                call(["timescaledb-tune", "-yes"]),
+                call(["sudo", "systemctl", "restart", "postgresql"]),
+            ]
+        )
+        self.assertEqual(harness.model.unit.status, ActiveStatus())
+
+    @patch("os.path.exists")
+    @patch("subprocess.Popen")
+    @patch("subprocess.check_call")
+    @patch("subprocess.check_output")
+    def test_install_from_repository_with_toolkit(
+        self, mock_check_output, mock_check_call, mock_popen, mock_exists
+    ):
+        """Installs fine from repository together with toolkit when all is good."""
+        harness = Harness(
+            TimescaleDB,
+            config="""
+            options:
+                apt-repository:
+                  default: https://packagecloud.io/timescale/timescaledb/ubuntu/
+                  type: string
+                apt-key:
+                  default:
+                  type: string
+                setup-toolkit:
+                  default: True
+                  type: boolean
+                toolkit-version:
+                  default:
+                  type: string
+                version:
+                  default:
+                  type: string
+        """,
+        )
+        self.addCleanup(harness.cleanup)
+
+        mock_popen_pipe = MagicMock(spec=subprocess.Popen)
+        mock_popen_pipe.stdout = MagicMock(spec=subprocess.PIPE)
+        mock_popen_pipe.wait = MagicMock()
+        mock_popen_pipe.wait.return_value = None
+        mock_popen.return_value = mock_popen_pipe
+        mock_check_call.return_value = None
+        mock_check_output.return_value = "focal".encode()
+        mock_exists.return_value = True
+
+        harness.begin()
+        harness.charm.on.install.emit()
+
+        mock_exists.assert_has_calls([call("/var/lib/postgresql"), call("/var/lib/postgresql/12")])
+        mock_popen.assert_called_once_with(
+            [
+                "echo",
+                "deb https://packagecloud.io/timescale/timescaledb/ubuntu/ focal main",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        mock_check_call.assert_has_calls(
+            [
+                call(["sudo", "apt-get", "update", "-qq"]),
+                call(
+                    [
+                        "sudo",
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "coreutils",
+                        "apt-transport-https",
+                        "lsb-release",
+                        "wget",
+                    ]
+                ),
+                call(
+                    ["sudo", "tee", "/etc/apt/sources.list.d/timescaledb.list"],
+                    stdin=mock_popen_pipe.stdout,
+                ),
+                call(["sudo", "apt-get", "update", "-qq"]),
+                call(
+                    [
+                        "sudo",
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "timescaledb-2-postgresql-12",
+                        "timescaledb-2-loader-postgresql-12",
+                    ]
+                ),
+                call(
+                    [
+                        "sudo",
+                        "apt-get",
+                        "install",
+                        "-y",
+                        "timescaledb-toolkit-postgresql-12",
                     ]
                 ),
                 call(["timescaledb-tune", "-yes"]),

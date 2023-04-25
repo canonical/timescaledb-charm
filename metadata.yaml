@@ -33,6 +33,12 @@ resources:
     description: |
       Deb package for TimescaleDB tools. Must be provided if using a custom deb
       for installing (see `deb` resource).
+  toolkit-deb:
+    type: file
+    filename: timescaledb_toolkit.deb
+    description: |
+      Deb package for TimescaleDB Toolkit. If not provided, toolkit will not be
+      installed.
 series:
 - focal
 - jammy

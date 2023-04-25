@@ -43,6 +43,10 @@ Alternatively, the `juju deploy` step can be performed with custom resources:
 juju deploy timescaledb --resource deb=<path-to-tsdb-deb> --resource loader-deb=<path-to-tsdb-loader> --resource tools-deb=<path-to-tsdb-tools>
 ```
 
+[TimescaleDB Toolkit](https://github.com/timescale/timescaledb-toolkit) can also be setup by
+setting the `setup-toolkit` config to `True` or by providing the `toolkit-deb` resource if setting
+up from custom resources.
+
 ## Contributing
 Please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
