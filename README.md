@@ -1,3 +1,9 @@
+# DEPRECATED
+
+This project is deprecated and not supported. 
+
+This subordinate charm only works with the legacy version of the Postgres charm.
+
 # TimescaleDB Subordinate Charm
 
 ## Description
